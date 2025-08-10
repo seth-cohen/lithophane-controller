@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32C3 NeoPixel Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            margin: 0; 
+            padding: 20px;
+            background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%); 
+            color: white; 
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 450px; 
+            margin: 0 auto; 
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .mode-toggle { 
+            margin: 25px 0; 
+        }
+        .control-section { 
+            margin: 25px 0; 
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        button { 
+            padding: 15px 30px; 
+            font-size: 16px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            margin: 5px;
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .rainbow-btn { 
+            background: linear-gradient(45deg, #ff0000, #ff8000, #ffff00, #80ff00, #00ff80, #0080ff, #8000ff); 
+            color: white; 
+            background-size: 200% 200%;
+            animation: rainbow 3s ease infinite;
+        }
+        @keyframes rainbow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .static-btn { 
+            background: linear-gradient(45deg, #333, #555); 
+            color: white; 
+        }
+        .active { 
+            box-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88; 
+            transform: scale(1.02);
+        }
+        .color-picker-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .color-input-wrapper {
+            position: relative;
+        }
+        input[type="color"] { 
+            width: 80px; 
+            height: 80px; 
+            border: none; 
+            border-radius: 50%; 
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s ease;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            padding: 0;
+            overflow: hidden;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+            border: none;
+            border-radius: 50%;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 50%;
+        }
+        input[type="color"]::-moz-color-swatch {
+            border: none;
+            border-radius: 50%;
+        }
+        input[type="color"]:hover {
+            transform: scale(1.05);
+        }
+        .color-presets {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            margin: 15px 0;
+        }
+        .color-preset {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .color-preset:hover {
+            transform: scale(1.1);
+            border-color: white;
+        }
+        .slider-container {
+            margin: 20px 0;
+        }
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #333, #fff);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            transition: none; /* Remove transitions that cause glitching */
+        }
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00ff88;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+            transition: none; /* Remove transitions that cause glitching */
+        }
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00ff88;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+            transition: none; /* Remove transitions that cause glitching */
+        }
+        .status { 
+            margin: 20px 0; 
+            padding: 15px; 
+            background: rgba(0, 255, 136, 0.1); 
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+        .status-item {
+            margin: 8px 0;
+            font-size: 16px;
+        }
+        .label {
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: block;
+            color: #00ff88;
+        }
+        .value-display {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        .color-block {
+            width: 60px;
+            height: 1.2em;
+            border-radius: 5px;
+            display: inline-block;
+            margin-left: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: background-color 0.3s ease;
+            vertical-align: middle;
+            padding: 5px 10px;
+        }
+        .connection-status {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+        .connected { color: #00ff88; }
+        .disconnected { color: #ff4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NeoPixel Controller</h1>
+        
+        <div class="status">
+            <div class="status-item">Mode: <span id="currentMode" class="value-display">Rainbow</span></div>
+            <div class="status-item">Color: <div id="currentColor" class="color-block" style="background-color: #FF0000;"></div></div>
+            <div class="status-item">Brightness: <span id="currentBrightness" class="value-display">100%</span></div>
+            <div class="connection-status">
+                Status: <span id="connectionStatus" class="disconnected">Connecting...</span>
+            </div>
+        </div>
+        
+        <div class="mode-toggle">
+            <button id="rainbowBtn" class="rainbow-btn active" onclick="setRainbowMode()">Rainbow Mode</button>
+            <button id="staticBtn" class="static-btn" onclick="setStaticMode()">Static Color</button>
+        </div>
+        
+        <div class="control-section">
+            <label class="label">Brightness Control</label>
+            <div class="slider-container">
+                <input type="range" min="1" max="255" value="255" class="slider" id="brightnessSlider" oninput="setBrightness()">
+                <div>Brightness: <span id="brightnessValue">100%</span></div>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <label class="label">Color Selection</label>
+            <div class="color-picker-container">
+                <div class="color-input-wrapper">
+                    <input type="color" id="colorPicker" value="#ff0000" onchange="setColor()">
+                </div>
+            </div>
+            
+            <label class="label">Quick Colors</label>
+            <div class="color-presets">
+                <div class="color-preset" style="background: #ff0000;" onclick="setPresetColor('#ff0000')" title="Red"></div>
+                <div class="color-preset" style="background: #ff4500;" onclick="setPresetColor('#ff4500')" title="Orange Red"></div>
+                <div class="color-preset" style="background: #ffa500;" onclick="setPresetColor('#ffa500')" title="Orange"></div>
+                <div class="color-preset" style="background: #ffff00;" onclick="setPresetColor('#ffff00')" title="Yellow"></div>
+                <div class="color-preset" style="background: #adff2f;" onclick="setPresetColor('#adff2f')" title="Green Yellow"></div>
+                <div class="color-preset" style="background: #00ff00;" onclick="setPresetColor('#00ff00')" title="Green"></div>
+                <div class="color-preset" style="background: #00ffff;" onclick="setPresetColor('#00ffff')" title="Cyan"></div>
+                <div class="color-preset" style="background: #0080ff;" onclick="setPresetColor('#0080ff')" title="Sky Blue"></div>
+                <div class="color-preset" style="background: #0000ff;" onclick="setPresetColor('#0000ff')" title="Blue"></div>
+                <div class="color-preset" style="background: #8000ff;" onclick="setPresetColor('#8000ff')" title="Purple"></div>
+                <div class="color-preset" style="background: #ff00ff;" onclick="setPresetColor('#ff00ff')" title="Magenta"></div>
+                <div class="color-preset" style="background: #ffffff;" onclick="setPresetColor('#ffffff')" title="White"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let websocket;
+        let isConnected = false;
+        let lastSentCommand = null;
+        let lastSentTime = 0;
+        let isUserInteracting = false;
+        
+        // Throttling timers
+        let brightnessTimeout;
+        let colorTimeout;
+        
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.hostname + ':81/';
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = function(event) {
+                console.log('WebSocket connected');
+                isConnected = true;
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                document.getElementById('connectionStatus').className = 'connected';
+            };
+            
+            websocket.onclose = function(event) {
+                console.log('WebSocket disconnected');
+                isConnected = false;
+                document.getElementById('connectionStatus').textContent = 'Disconnected';
+                document.getElementById('connectionStatus').className = 'disconnected';
+                // Try to reconnect after 3 seconds
+                setTimeout(initWebSocket, 3000);
+            };
+            
+            websocket.onerror = function(error) {
+                console.log('WebSocket error:', error);
+            };
+            
+            websocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'status') {
+                    // Only update UI if user isn't currently interacting
+                    if (!isUserInteracting) {
+                        updateUI(data);
+                    }
+                }
+            };
+        }
+        
+        // Send command via WebSocket with better throttling
+        function sendCommand(command, value = null) {
+            if (!isConnected) return;
+            
+            const now = Date.now();
+            const commandKey = command + (value !== null ? '-' + value : '');
+            
+            // Don't send duplicate commands too quickly
+            if (lastSentCommand === commandKey && (now - lastSentTime) < 100) {
+                return;
+            }
+            
+            const message = value !== null ? 
+                JSON.stringify({command: command, value: value}) :
+                JSON.stringify({command: command});
+            
+            websocket.send(message);
+            lastSentCommand = commandKey;
+            lastSentTime = now;
+        }
+        
+        // Update UI with received data (only when not interacting)
+        function updateUI(data) {
+            document.getElementById('currentMode').textContent = data.mode;
+            
+            if (data.mode === 'Rainbow') {
+                document.getElementById('rainbowBtn').classList.add('active');
+                document.getElementById('staticBtn').classList.remove('active');
+            } else {
+                document.getElementById('rainbowBtn').classList.remove('active');
+                document.getElementById('staticBtn').classList.add('active');
+                
+                // Update color picker only if not currently being used
+                if (data.color && !isUserInteracting) {
+                    const colorPicker = document.getElementById('colorPicker');
+                    const currentValue = colorPicker.value.toUpperCase();
+                    const newValue = data.color.toUpperCase();
+                    
+                    if (currentValue !== newValue) {
+                        colorPicker.value = data.color.toLowerCase();
+                    }
+                }
+            }
+            
+            // Always update status displays
+            if (data.color) {
+                document.getElementById('currentColor').style.backgroundColor = data.color;
+            }
+            
+            if (data.brightness !== undefined) {
+                const percentage = Math.round((data.brightness / 255) * 100);
+                document.getElementById('currentBrightness').textContent = percentage + '%';
+                
+                // Only update slider value if not being dragged
+                if (!isUserInteracting) {
+                    const slider = document.getElementById('brightnessSlider');
+                    const currentSliderValue = parseInt(slider.value);
+                    if (Math.abs(currentSliderValue - data.brightness) > 5) {
+                        slider.value = data.brightness;
+                        document.getElementById('brightnessValue').textContent = percentage + '%';
+                    }
+                }
+            }
+        }
+        
+        function setRainbowMode() {
+            sendCommand('rainbow');
+        }
+        
+        function setStaticMode() {
+            const color = document.getElementById('colorPicker').value;
+            sendCommand('color', color.substring(1));
+        }
+        
+        function setColor() {
+            clearTimeout(colorTimeout);
+            colorTimeout = setTimeout(() => {
+                const color = document.getElementById('colorPicker').value;
+                sendCommand('color', color.substring(1));
+            }, 100);
+        }
+        
+        function setPresetColor(color) {
+            const colorPicker = document.getElementById('colorPicker');
+            colorPicker.value = color;
+            sendCommand('color', color.substring(1));
+        }
+        
+        // Enhanced brightness function with interaction tracking
+        function setBrightness() {
+            const brightness = document.getElementById('brightnessSlider').value;
+            const percentage = Math.round((brightness / 255) * 100);
+            document.getElementById('brightnessValue').textContent = percentage + '%';
+            document.getElementById('currentBrightness').textContent = percentage + '%';
+            
+            clearTimeout(brightnessTimeout);
+            brightnessTimeout = setTimeout(() => {
+                sendCommand('brightness', parseInt(brightness));
+            }, 150);
+        }
+        
+        // Track user interaction with slider
+        function startInteraction() {
+            isUserInteracting = true;
+        }
+        
+        function endInteraction() {
+            setTimeout(() => {
+                isUserInteracting = false;
+            }, 500); // Wait a bit before allowing updates
+        }
+        
+        // Initialize WebSocket when page loads
+        window.onload = function() {
+            initWebSocket();
+            
+            // Add interaction tracking to brightness slider
+            const slider = document.getElementById('brightnessSlider');
+            slider.addEventListener('mousedown', startInteraction);
+            slider.addEventListener('touchstart', startInteraction);
+            slider.addEventListener('mouseup', endInteraction);
+            slider.addEventListener('touchend', endInteraction);
+            
+            // Add interaction tracking to color picker
+            const colorPicker = document.getElementById('colorPicker');
+            colorPicker.addEventListener('focus', startInteraction);
+            colorPicker.addEventListener('blur', endInteraction);
+        };
+    </script>
+</body>
+</html>
