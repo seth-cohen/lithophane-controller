@@ -200,6 +200,78 @@
         }
         .connected { color: #00ff88; }
         .disconnected { color: #ff4444; }
+        .pattern-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .pattern-btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            font-weight: 600;
+        }
+        .pattern-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .pattern-btn.active {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
+            transform: scale(1.05);
+        }
+        .next-btn {
+            margin-top: 20px;
+            padding: 10px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: linear-gradient(45deg, #333, #555);
+            color: white;
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+        .next-btn:hover {
+            background: linear-gradient(45deg, #555, #777);
+        }
+        .auto-cycle-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .auto-cycle-btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            font-weight: 600;
+        }
+        .auto-cycle-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .interval-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .interval-control label {
+            font-size: 14px;
+            color: #00ff88;
+        }
     </style>
 </head>
 <body>
@@ -215,9 +287,29 @@
             </div>
         </div>
         
-        <div class="mode-toggle">
-            <button id="rainbowBtn" class="rainbow-btn active" onclick="setRainbowMode()">Rainbow Mode</button>
-            <button id="staticBtn" class="static-btn" onclick="setStaticMode()">Static Color</button>
+        <div class="control-section">
+            <label class="label">Pattern Selection</label>
+            <div class="pattern-grid">
+                <button class="pattern-btn" onclick="setPattern(0)" data-pattern="0">Rainbow</button>
+                <button class="pattern-btn" onclick="setPattern(1)" data-pattern="1">Static</button>
+                <button class="pattern-btn" onclick="setPattern(2)" data-pattern="2">Wave</button>
+                <button class="pattern-btn" onclick="setPattern(3)" data-pattern="3">Fire</button>
+                <button class="pattern-btn" onclick="setPattern(4)" data-pattern="4">Matrix</button>
+                <button class="pattern-btn" onclick="setPattern(5)" data-pattern="5">Spiral</button>
+                <button class="pattern-btn" onclick="setPattern(6)" data-pattern="6">Pulse</button>
+            </div>
+            <button class="next-btn" onclick="nextPattern()">Next Pattern</button>
+        </div>
+        
+        <div class="control-section">
+            <label class="label">Auto-Cycle Control</label>
+            <div class="auto-cycle-controls">
+                <button id="autoCycleBtn" class="auto-cycle-btn" onclick="toggleAutoCycle()">Enable Auto-Cycle</button>
+                <div class="interval-control">
+                    <label>Interval: <span id="intervalValue">6</span> seconds</label>
+                    <input type="range" min="3" max="60" value="6" class="slider" id="intervalSlider" oninput="setInterval()">
+                </div>
+            </div>
         </div>
         
         <div class="control-section">
@@ -293,12 +385,16 @@
             };
             
             websocket.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                if (data.type === 'status') {
-                    // Only update UI if user isn't currently interacting
-                    if (!isUserInteracting) {
+                console.log('WebSocket message received:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Parsed data:', data);
+                    
+                    if (data.type === 'status') {
                         updateUI(data);
                     }
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
                 }
             };
         }
@@ -326,24 +422,38 @@
         
         // Update UI with received data (only when not interacting)
         function updateUI(data) {
-            document.getElementById('currentMode').textContent = data.mode;
+            console.log('Updating UI with data:', data);
             
-            if (data.mode === 'Rainbow') {
-                document.getElementById('rainbowBtn').classList.add('active');
-                document.getElementById('staticBtn').classList.remove('active');
-            } else {
-                document.getElementById('rainbowBtn').classList.remove('active');
-                document.getElementById('staticBtn').classList.add('active');
-                
-                // Update color picker only if not currently being used
-                if (data.color && !isUserInteracting) {
-                    const colorPicker = document.getElementById('colorPicker');
-                    const currentValue = colorPicker.value.toUpperCase();
-                    const newValue = data.color.toUpperCase();
-                    
-                    if (currentValue !== newValue) {
-                        colorPicker.value = data.color.toLowerCase();
-                    }
+            // Update pattern buttons
+            updatePatternButtons(data.pattern || 0);
+            
+            // Update mode display
+            console.log('Setting mode to:', data.mode);
+            document.getElementById('currentMode').textContent = data.mode || 'Unknown';
+            
+            // Update auto-cycle controls
+            if (data.autoCycle !== undefined) {
+                const autoCycleBtn = document.getElementById('autoCycleBtn');
+                if (data.autoCycle) {
+                    autoCycleBtn.textContent = 'Disable Auto-Cycle';
+                    autoCycleBtn.classList.add('active');
+                } else {
+                    autoCycleBtn.textContent = 'Enable Auto-Cycle';
+                    autoCycleBtn.classList.remove('active');
+                }
+            }
+            
+            if (data.autoCycleInterval !== undefined) {
+                const intervalSeconds = Math.round(data.autoCycleInterval / 1000);
+                document.getElementById('intervalSlider').value = intervalSeconds;
+                document.getElementById('intervalValue').textContent = intervalSeconds;
+            }
+            
+            // Update color display if available
+            if (data.color && data.color !== '#000000') {
+                const colorPicker = document.getElementById('colorPicker');
+                if (colorPicker && colorPicker.value !== data.color.toLowerCase()) {
+                    colorPicker.value = data.color.toLowerCase();
                 }
             }
             
@@ -368,11 +478,56 @@
             }
         }
         
+        // Update pattern button states
+        function updatePatternButtons(currentPattern) {
+            // Remove active class from all pattern buttons
+            document.querySelectorAll('.pattern-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Add active class to current pattern button
+            const activeBtn = document.querySelector(`[data-pattern="${currentPattern}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+        }
+        
+        function setPattern(pattern) {
+            let command = '';
+            switch(pattern) {
+                case 0: command = 'rainbow'; break;
+                case 1: command = 'static'; break;
+                case 2: command = 'wave'; break;
+                case 3: command = 'fire'; break;
+                case 4: command = 'matrix'; break;
+                case 5: command = 'spiral'; break;
+                case 6: command = 'pulse'; break;
+                default: command = 'rainbow'; break;
+            }
+            sendCommand(command);
+        }
+        
+        function nextPattern() {
+            sendCommand('next');
+        }
+        
+        function toggleAutoCycle() {
+            sendCommand('autoCycle');
+        }
+        
+        function setInterval() {
+            const interval = document.getElementById('intervalSlider').value;
+            document.getElementById('intervalValue').textContent = interval;
+            sendCommand('autoCycleInterval', interval * 1000); // Convert to milliseconds
+        }
+        
         function setRainbowMode() {
-            sendCommand('rainbow');
+            setPattern(0);
         }
         
         function setStaticMode() {
+            setPattern(1);
+            // Also set the current color
             const color = document.getElementById('colorPicker').value;
             sendCommand('color', color.substring(1));
         }
@@ -414,8 +569,8 @@
                 isUserInteracting = false;
             }, 500); // Wait a bit before allowing updates
         }
-        
-        // Initialize WebSocket when page loads
+      
+      // Initialize WebSocket when page loads
         window.onload = function() {
             initWebSocket();
             
